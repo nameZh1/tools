@@ -6,7 +6,7 @@ shared_files/*
 !shared_files/.gitkeep
 
 # 运行时数据 - 共享文本
-# shared_text.txt
+shared_text.txt
 
 # 日志文件
 *.log

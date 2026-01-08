@@ -5,6 +5,9 @@ node_modules/
 shared_files/*
 !shared_files/.gitkeep
 
+# 运行时数据 - 分片上传临时目录
+temp_chunks/
+
 # 运行时数据 - 共享文本
 shared_text.txt
 

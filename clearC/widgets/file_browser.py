@@ -132,13 +132,10 @@ class FileBrowser(ctk.CTkFrame):
 
     def _insert_entry(self, parent_iid, entry):
         if entry.is_symlink:
-            prefix = "[L] "
             type_text = "链接"
         elif entry.is_dir:
-            prefix = "[D] "
             type_text = "文件夹"
         else:
-            prefix = "    "
             type_text = "文件"
 
         size_text = self._format_size(entry.size) if entry.size >= 0 else "--"
@@ -150,7 +147,7 @@ class FileBrowser(ctk.CTkFrame):
 
         iid = self.tree.insert(
             parent_iid, "end",
-            text=f"{prefix}{entry.name}",
+            text=entry.name,
             values=(size_text, type_text, status_text),
             tags=tags, open=False
         )

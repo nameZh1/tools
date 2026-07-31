@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>配电开关潮流演示</title>
+  <style>
+    :root {
+      --page: #eef2f5;
+      --surface: #ffffff;
+      --surface-soft: #f7f9fb;
+      --line: #d8e0e7;
+      --line-strong: #aab7c3;
+      --text: #1f2933;
+      --muted: #5d6b78;
+      --quiet: #8a98a5;
+      --live: #0b9b6f;
+      --live-soft: #d8f3e9;
+      --flow: #087eb8;
+      --warning: #d86b16;
+      --off: #7c8995;
+      --danger: #c94141;
+      --focus: #075f8c;
+      --radius: 6px;
+      --shadow: 0 10px 28px rgb(29 45 56 / 8%);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 320px;
+      background: var(--page);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background: var(--page);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button,
+    input[type="checkbox"],
+    input[type="range"] {
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    [role="button"]:focus-visible {
+      outline: 3px solid rgb(7 95 140 / 28%);
+      outline-offset: 3px;
+    }
+
+    .app-shell {
+      width: min(1480px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      background: var(--surface);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      min-height: 78px;
+      padding: 14px clamp(18px, 3vw, 40px);
+      color: #f8fafc;
+      background: #24323d;
+      border-bottom: 4px solid var(--warning);
+    }
+
+    .brand-kicker {
+      margin: 0 0 2px;
+      color: #bfcbd4;
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 12px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 0;
+      font-size: clamp(20px, 2.2vw, 28px);
+      font-weight: 650;
+      letter-spacing: 0;
+      line-height: 1.25;
+    }
+
+    .system-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      flex: 0 0 auto;
+      min-height: 40px;
+      padding: 8px 12px;
+      color: #e8eef2;
+      background: rgb(255 255 255 / 7%);
+      border: 1px solid rgb(255 255 255 / 14%);
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 auto;
+      background: var(--off);
+      border: 2px solid rgb(255 255 255 / 70%);
+      border-radius: 50%;
+    }
+
+    .status-dot.is-running {
+      background: #2ed39a;
+    }
+
+    .status-dot.is-warning {
+      background: #f59d50;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 286px;
+      min-height: calc(100vh - 82px);
+    }
+
+    .diagram-section {
+      min-width: 0;
+      padding: 24px clamp(16px, 2.4vw, 32px) 30px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 14px;
+    }
+
+    .section-header h2,
+    .control-panel h2 {
+      margin-bottom: 3px;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .section-header p,
+    .control-panel > p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .legend-line {
+      width: 26px;
+      height: 0;
+      border-top: 4px solid var(--off);
+    }
+
+    .legend-line.is-live {
+      border-color: var(--live);
+    }
+
+    .legend-line.is-flow {
+      border-color: var(--flow);
+      border-top-style: dashed;
+    }
+
+    .diagram-viewport {
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      scrollbar-color: var(--line-strong) transparent;
+      scrollbar-width: thin;
+    }
+
+    #powerDiagramSvg {
+      display: block;
+      width: 100%;
+      min-width: 720px;
+      height: auto;
+      aspect-ratio: 1000 / 560;
+    }
+
+    .svg-zone-label {
+      fill: var(--quiet);
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .svg-device-label {
+      fill: var(--text);
+      font-size: 17px;
+      font-weight: 650;
+      text-anchor: middle;
+    }
+
+    .svg-state-label {
+      fill: var(--muted);
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 14px;
+      font-weight: 600;
+      text-anchor: middle;
+    }
+
+    .svg-small-label {
+      fill: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      text-anchor: middle;
+    }
+
+    .conductor,
+    .switch-blade,
+    .switch-contact,
+    .load-symbol,
+    .source-symbol {
+      transition: stroke 220ms ease, fill 220ms ease, opacity 220ms ease;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .conductor {
+      fill: none;
+      stroke: var(--off);
+      stroke-width: 7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .conductor.is-live,
+    .switch-blade.is-live,
+    .switch-contact.is-live {
+      stroke: var(--live);
+    }
+
+    .switch-contact {
+      fill: var(--surface);
+      stroke: var(--off);
+      stroke-width: 6;
+    }
+
+    .switch-contact.is-selected:not(.is-live) {
+      stroke: var(--warning);
+    }
+
+    .switch-blade {
+      fill: none;
+      stroke: var(--warning);
+      stroke-width: 9;
+      stroke-linecap: round;
+      transform-box: view-box;
+      transition: transform 280ms cubic-bezier(.2, .75, .25, 1), stroke 220ms ease;
+      vector-effect: non-scaling-stroke;
+    }
+
+    #straightBlade {
+      transform-origin: 290px 280px;
+    }
+
+    #straightBlade.is-open {
+      transform: rotate(-31deg);
+    }
+
+    #branchBlade {
+      transform-origin: 620px 280px;
+    }
+
+    #branchBlade.to-a {
+      transform: rotate(-34.7deg);
+    }
+
+    #branchBlade.to-b {
+      transform: rotate(34.7deg);
+    }
+
+    .flow-path {
+      fill: none;
+      stroke: var(--flow);
+      stroke-width: 5;
+      stroke-dasharray: 3 20;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0;
+      pointer-events: none;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .flow-path.is-flowing {
+      opacity: 1;
+      animation: flow-forward var(--flow-duration, 1s) linear infinite;
+    }
+
+    .flow-path.is-flowing.is-reverse {
+      animation-name: flow-reverse;
+    }
+
+    @keyframes flow-forward {
+      to { stroke-dashoffset: -46; }
+    }
+
+    @keyframes flow-reverse {
+      to { stroke-dashoffset: 46; }
+    }
+
+    .source-symbol {
+      fill: var(--surface);
+      stroke: var(--off);
+      stroke-width: 5;
+    }
+
+    .source-symbol.is-live {
+      fill: var(--live-soft);
+      stroke: var(--live);
+    }
+
+    .source-wave {
+      fill: none;
+      stroke: var(--off);
+      stroke-width: 4;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .source-wave.is-live {
+      stroke: var(--live);
+    }
+
+    .load-symbol {
+      fill: var(--surface);
+      stroke: var(--off);
+      stroke-width: 3;
+    }
+
+    .load-symbol.is-selected:not(.is-live) {
+      fill: #fff7ed;
+      stroke: var(--warning);
+    }
+
+    .load-symbol.is-live {
+      fill: var(--live-soft);
+      stroke: var(--live);
+    }
+
+    .load-bars {
+      fill: var(--off);
+      transition: fill 220ms ease;
+    }
+
+    .load-bars.is-live {
+      fill: var(--live);
+    }
+
+    .device-hit-area {
+      fill: transparent;
+      stroke: transparent;
+      cursor: pointer;
+    }
+
+    .device-control:hover .device-hit-outline,
+    .device-control:focus-visible .device-hit-outline {
+      opacity: 1;
+    }
+
+    .device-hit-outline {
+      fill: none;
+      stroke: var(--focus);
+      stroke-width: 2;
+      stroke-dasharray: 4 4;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .state-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .state-item {
+      min-width: 0;
+      padding: 11px 14px;
+      border-right: 1px solid var(--line);
+    }
+
+    .state-item:last-child {
+      border-right: 0;
+    }
+
+    .state-item span {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .state-item strong {
+      display: block;
+      margin-top: 2px;
+      overflow: hidden;
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 14px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .control-panel {
+      padding: 24px 20px;
+      background: #f8fafb;
+      border-left: 1px solid var(--line);
+    }
+
+    .control-group {
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .control-group:last-child {
+      border-bottom: 0;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 44px;
+    }
+
+    .control-label {
+      min-width: 0;
+    }
+
+    .control-label strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .control-label span {
+      display: block;
+      margin-top: 1px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 44px;
+      flex: 0 0 auto;
+    }
+
+    .toggle input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .toggle-track {
+      position: absolute;
+      inset: 9px 0;
+      background: var(--off);
+      border-radius: 13px;
+      transition: background 200ms ease;
+    }
+
+    .toggle-track::after {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 1px 4px rgb(0 0 0 / 24%);
+      content: "";
+      transition: transform 200ms ease;
+    }
+
+    .toggle input:checked + .toggle-track {
+      background: var(--live);
+    }
+
+    .toggle input:checked + .toggle-track::after {
+      transform: translateX(22px);
+    }
+
+    .toggle input:focus-visible + .toggle-track {
+      outline: 3px solid rgb(7 95 140 / 28%);
+      outline-offset: 3px;
+    }
+
+    .segmented-label,
+    .range-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 9px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      min-height: 50px;
+      padding: 3px;
+      background: #e7edf1;
+      border-radius: 5px;
+    }
+
+    .segmented button {
+      min-width: 0;
+      min-height: 44px;
+      padding: 6px 9px;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 3px;
+      font-size: 13px;
+      font-weight: 650;
+      transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    }
+
+    .segmented button:hover {
+      color: var(--text);
+    }
+
+    .segmented button[aria-pressed="true"] {
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: 0 1px 4px rgb(31 41 51 / 16%);
+    }
+
+    .range-value {
+      color: var(--flow);
+      font-family: Consolas, monospace;
+      font-size: 13px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 44px;
+      margin: 0;
+      accent-color: var(--flow);
+    }
+
+    .data-snapshot {
+      display: block;
+      min-height: 122px;
+      margin: 9px 0 0;
+      padding: 11px;
+      overflow: auto;
+      color: #dbe7ee;
+      background: #263640;
+      border-radius: 4px;
+      font-family: Consolas, "Microsoft YaHei", monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (max-width: 980px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .control-panel {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 24px;
+        border-top: 1px solid var(--line);
+        border-left: 0;
+      }
+
+      .control-panel > h2,
+      .control-panel > p {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 660px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .system-state {
+        width: 100%;
+      }
+
+      .section-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .legend {
+        justify-content: flex-start;
+      }
+
+      .state-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .state-item:nth-child(2) {
+        border-right: 0;
+      }
+
+      .state-item:nth-child(-n + 2) {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .control-panel {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+
+      .flow-path.is-flowing {
+        animation: none;
+        stroke-dasharray: 8 12;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="brand-kicker">POWER DISTRIBUTION / SVG</p>
+        <h1>配电开关潮流演示</h1>
+      </div>
+      <div class="system-state" role="status" aria-live="polite">
+        <span id="systemStateDot" class="status-dot" aria-hidden="true"></span>
+        <span id="systemStateText">正在初始化</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="diagram-section" aria-labelledby="diagramTitle">
+        <header class="section-header">
+          <div>
+            <h2 id="diagramTitle">10 kV 单线系统</h2>
+            <p>电源经主开关进入一分二互锁支路</p>
+          </div>
+          <div class="legend" aria-label="图例">
+            <span class="legend-item"><span class="legend-line is-live" aria-hidden="true"></span>带电</span>
+            <span class="legend-item"><span class="legend-line" aria-hidden="true"></span>失电</span>
+            <span class="legend-item"><span class="legend-line is-flow" aria-hidden="true"></span>潮流</span>
+          </div>
+        </header>
+
+        <div class="diagram-viewport" tabindex="0" aria-label="配电单线图，可横向滚动查看">
+          <svg id="powerDiagramSvg" width="1000" height="560" viewBox="0 0 1000 560" role="img" aria-labelledby="svgTitle svgDescription">
+            <title id="svgTitle">电源开关与动态潮流图</title>
+            <desc id="svgDescription">包含一个直线主开关和一个一分二互锁开关，蓝色虚线表示电流方向。</desc>
+            <defs>
+              <pattern id="gridPattern" width="28" height="28" patternUnits="userSpaceOnUse">
+                <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#dfe6eb" stroke-width="1" opacity="0.72"></path>
+              </pattern>
+              <marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 Z" fill="#087eb8"></path>
+              </marker>
+            </defs>
+
+            <rect width="1000" height="560" fill="#f7f9fb"></rect>
+            <rect width="1000" height="560" fill="url(#gridPattern)"></rect>
+
+            <text class="svg-zone-label" x="48" y="52">电源侧</text>
+            <text class="svg-zone-label" x="265" y="52">主开关</text>
+            <text class="svg-zone-label" x="588" y="52">一分二互锁开关</text>
+            <text class="svg-zone-label" x="840" y="52">负荷侧</text>
+
+            <path id="sourceLine" class="conductor" d="M 140 280 H 290"></path>
+            <path id="mainLine" class="conductor" d="M 420 280 H 620"></path>
+            <path id="branchALine" class="conductor" d="M 750 190 H 856"></path>
+            <path id="branchBLine" class="conductor" d="M 750 370 H 856"></path>
+
+            <g aria-hidden="true">
+              <circle id="sourceCircle" class="source-symbol" cx="95" cy="280" r="45"></circle>
+              <path id="sourceWave" class="source-wave" d="M 64 280 C 75 255, 86 255, 96 280 S 117 305, 127 280"></path>
+              <text class="svg-device-label" x="95" y="352">10 kV 电源</text>
+              <text id="sourceSvgState" class="svg-state-label" x="95" y="378">停运</text>
+            </g>
+
+            <g id="straightSwitchControl" class="device-control" role="button" tabindex="0" aria-label="切换直线主开关">
+              <rect class="device-hit-area" x="255" y="190" width="205" height="180" rx="4"></rect>
+              <rect class="device-hit-outline" x="263" y="198" width="189" height="164" rx="4"></rect>
+              <circle id="straightContactLeft" class="switch-contact" cx="290" cy="280" r="10"></circle>
+              <circle id="straightContactRight" class="switch-contact" cx="420" cy="280" r="10"></circle>
+              <line id="straightBlade" class="switch-blade" x1="290" y1="280" x2="420" y2="280"></line>
+              <text class="svg-device-label" x="355" y="352">直线开关 QF1</text>
+              <text id="straightSvgState" class="svg-state-label" x="355" y="378">分闸</text>
+            </g>
+
+            <g id="branchSwitchControl" class="device-control" role="button" tabindex="0" aria-label="切换一分二互锁支路">
+              <rect class="device-hit-area" x="570" y="112" width="225" height="336" rx="4"></rect>
+              <rect class="device-hit-outline" x="578" y="120" width="209" height="320" rx="4"></rect>
+              <circle id="branchContactCommon" class="switch-contact" cx="620" cy="280" r="10"></circle>
+              <circle id="branchContactA" class="switch-contact" cx="750" cy="190" r="10"></circle>
+              <circle id="branchContactB" class="switch-contact" cx="750" cy="370" r="10"></circle>
+              <line id="branchBlade" class="switch-blade to-a" x1="620" y1="280" x2="778" y2="280"></line>
+              <text class="svg-small-label" x="715" y="151">A 路</text>
+              <text class="svg-small-label" x="715" y="414">B 路</text>
+              <text class="svg-device-label" x="665" y="476">互锁开关 QS1</text>
+              <text id="branchSvgState" class="svg-state-label" x="665" y="502">A 合 / B 分</text>
+            </g>
+
+            <g id="loadAControl" class="device-control" role="button" tabindex="0" aria-label="选择支路 A">
+              <rect class="device-hit-area" x="830" y="120" width="145" height="140" rx="4"></rect>
+              <rect class="device-hit-outline" x="838" y="128" width="129" height="124" rx="4"></rect>
+              <rect id="loadABox" class="load-symbol" x="856" y="150" width="102" height="80" rx="5"></rect>
+              <rect id="loadABar1" class="load-bars" x="876" y="171" width="62" height="8" rx="2"></rect>
+              <rect id="loadABar2" class="load-bars" x="876" y="190" width="48" height="8" rx="2"></rect>
+              <text class="svg-device-label" x="907" y="255">负荷 A</text>
+            </g>
+
+            <g id="loadBControl" class="device-control" role="button" tabindex="0" aria-label="选择支路 B">
+              <rect class="device-hit-area" x="830" y="300" width="145" height="140" rx="4"></rect>
+              <rect class="device-hit-outline" x="838" y="308" width="129" height="124" rx="4"></rect>
+              <rect id="loadBBox" class="load-symbol" x="856" y="330" width="102" height="80" rx="5"></rect>
+              <rect id="loadBBar1" class="load-bars" x="876" y="351" width="62" height="8" rx="2"></rect>
+              <rect id="loadBBar2" class="load-bars" x="876" y="370" width="48" height="8" rx="2"></rect>
+              <text class="svg-device-label" x="907" y="435">负荷 B</text>
+            </g>
+
+            <path id="flowPathA" class="flow-path" d="M 140 280 H 620 L 750 190 H 856"></path>
+            <path id="flowPathB" class="flow-path" d="M 140 280 H 620 L 750 370 H 856"></path>
+          </svg>
+        </div>
+
+        <div class="state-strip" aria-label="实时状态">
+          <div class="state-item"><span>电源</span><strong id="sourceMetric">已送电</strong></div>
+          <div class="state-item"><span>直线开关</span><strong id="straightMetric">合闸</strong></div>
+          <div class="state-item"><span>互锁支路</span><strong id="branchMetric">A 路</strong></div>
+          <div class="state-item"><span>潮流</span><strong id="flowMetric">正向 · 1.0x</strong></div>
+        </div>
+      </section>
+
+      <aside class="control-panel" aria-labelledby="controlTitle">
+        <h2 id="controlTitle">数据控制</h2>
+        <p>当前状态同步至 SVG 图元</p>
+
+        <div class="control-group">
+          <div class="control-row">
+            <div class="control-label">
+              <strong>电源状态</strong>
+              <span id="sourceControlState">已送电</span>
+            </div>
+            <label class="toggle">
+              <input id="sourceToggle" type="checkbox" aria-label="电源状态">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <div class="control-label">
+              <strong>直线开关 QF1</strong>
+              <span id="straightControlState">合闸</span>
+            </div>
+            <label class="toggle">
+              <input id="straightToggle" type="checkbox" aria-label="直线开关 QF1 状态">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <p class="segmented-label">一分二互锁开关 QS1</p>
+          <div id="branchControl" class="segmented" aria-label="选择合闸支路">
+            <button type="button" data-branch="A" aria-pressed="true">A 合 / B 分</button>
+            <button type="button" data-branch="B" aria-pressed="false">A 分 / B 合</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <div class="control-label">
+              <strong>潮流动画</strong>
+              <span id="flowControlState">运行</span>
+            </div>
+            <label class="toggle">
+              <input id="flowToggle" type="checkbox" aria-label="潮流动画状态">
+              <span class="toggle-track" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <p class="segmented-label">电流方向</p>
+          <div id="directionControl" class="segmented" aria-label="选择电流方向">
+            <button type="button" data-direction="forward" aria-pressed="true">正向</button>
+            <button type="button" data-direction="reverse" aria-pressed="false">反向</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="range-label" for="flowSpeed">
+            <span>潮流速度</span>
+            <output id="flowSpeedValue" class="range-value" for="flowSpeed">1.0x</output>
+          </label>
+          <input id="flowSpeed" type="range" min="0.5" max="2" step="0.1" value="1" aria-label="潮流速度">
+        </div>
+
+        <div class="control-group">
+          <p class="segmented-label">数据快照</p>
+          <code id="dataSnapshot" class="data-snapshot" aria-live="polite"></code>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./power-switch.js"></script>
+</body>
+</html>
